@@ -1,4 +1,4 @@
-# Comment on "Bayesian additional evidence for decision making under small sample uncertainty".
+# Comment on "Bayesian additional evidence for decision making under small sample uncertainty"
 
 This repository contains code and data related to the preprint
 

@@ -1,10 +1,11 @@
-# Bayesian approaches to designing replication studies
+# Comment on "Bayesian additional evidence for decision making under small sample uncertainty".
 
 This repository contains code and data related to the preprint
 
-Pawel, S., Consonni, G., and Held, L. (2022). Bayesian approaches to designing
-replication studies
-[doi:10.48550/arXiv.2211.02552](https://doi.org/10.48550/arXiv.2211.02552)
+Pawel, S., Held, L. and Matthews, R. Comment on "Bayesian additional evidence
+for decision making under small sample uncertainty". BMC Medical Research
+Methodology. 22, 149 (2022).
+[doi:10.1186/s12874-022-01635-4](https://doi.org/10.1186/s12874-022-01635-4)
 
 ## Reproducing the results
 
@@ -18,10 +19,6 @@ directory of the repository
 ``` sh
 ## packages from CRAN
 R -e 'install.packages(read.delim("CRANpackages.txt", header = FALSE)[,1])'
-## requires remotes package, also available on CRAN
-R -e 'remotes::install_gitlab(repo = "samuel.pawel/BayesRep", subdir = "pkg",
-                              host = "gitlab.uzh.ch")'
-R -e 'remotes::install_github(repo = "SamCH93/BayesRepDesign")'
 ```
 
 Then run
@@ -31,7 +28,7 @@ cd paper
 make pdf
 ```
 
-this should reproduce all analyses and output the file `batdrs.pdf` in the paper
+this should reproduce all analyses and output the file `bae.pdf` in the paper
 directory.
 
 Although our analysis depends on only few dependencies, this approach may lead
@@ -49,7 +46,7 @@ Run in a shell from the root directory of the repository
 make drunpdf
 ```
 
-this should output the file `batdrs.pdf` in the paper directory. The Docker
+this should output the file `bae.pdf` in the paper directory. The Docker
 approach takes a bit longer but reruns our analyses in a Docker container which
 encapsulates the computational environment (R and R package versions) that was
 used in the original analysis. The only way this approach could become

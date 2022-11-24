@@ -1,0 +1,652 @@
+\documentclass{bmcart}
+
+%%% Load packages
+\usepackage{amsthm,amsmath}
+\RequirePackage[numbers]{natbib}
+\usepackage[utf8]{inputenc}
+
+\startlocaldefs
+\input{newcommands.tex}
+\usepackage{enumitem}
+\endlocaldefs
+
+\begin{document}
+
+\begin{frontmatter}
+
+\begin{fmbox}
+\dochead{Correspondence}
+
+\title{Comment on ``Bayesian additional evidence for decision making under small
+  sample uncertainty''}
+
+\author[
+  addressref={aff1},                   % id's of addresses, e.g. {aff1,aff2}
+  corref={aff1},                       % id of corresponding address, if any
+% noteref={n1},                        % id's of article notes, if any
+  email={samuel.pawel@uzh.ch}   % email address
+]{\inits{S.P.}\fnm{Samuel} \snm{Pawel}}
+\author[
+  addressref={aff1},
+  email={leonhard.held@uzh.ch}
+  ]{\inits{L.H.}\fnm{Leonhard} \snm{Held}}
+\author[
+  addressref={aff2},
+  email={robert.matthews@.com}
+]{\inits{R.M.}\fnm{Robert} \snm{Matthews}}
+
+\address[id=aff1]{%                           % unique id
+  \orgdiv{Department of Biostatistics},             % department, if any
+  \orgname{University of Zurich},          % university, etc
+  \city{Zurich},                              % city
+  \cny{Switzerland}                                    % country
+}
+\address[id=aff2]{%
+  \orgdiv{Department of Mathematics},
+  \orgname{Aston University},
+  \city{Birmingham},
+  \cny{UK}
+}
+
+\end{fmbox}% comment this for two column layout
+
+\begin{abstractbox}
+  \begin{abstract}
+    We examine the concept of Bayesian Additional Evidence (BAE) recently
+    proposed by Sondhi et al. We derive simple closed-form expressions for BAE
+    and compare its properties with other methods for assessing findings in the
+    light of new evidence. We find that while BAE is easy to apply, it lacks
+    both a compelling rationale and clarity of use needed for reliable
+    decision-making.
+\end{abstract}
+
+\begin{keyword}
+\kwd{Reverse-Bayes}
+\kwd{Analysis of Credibility}
+\kwd{Bayesian Additional Evidence}
+\kwd{Advocacy prior}
+\end{keyword}
+
+
+\end{abstractbox}
+% \end{fmbox}% uncomment this for two column layout
+
+\end{frontmatter}
+
+<< "main-setup", include = FALSE >>=
+## knitr options
+library(knitr)
+opts_chunk$set(fig.height = 4,
+               echo = FALSE,
+               warning = FALSE,
+               message = FALSE,
+               cache = FALSE,
+               eval = TRUE)
+
+## should sessionInfo be printed at the end?
+Reproducibility <- TRUE
+
+## function for formatting confidence intervals (from biostatUZH package)
+formatCI <- function (x, digits = 2, unit = "", text = "none") {
+    ## parse arguments
+    x <- if (is.vector(x) && length(x) == 2L) t(x) else as.matrix(x)
+    stopifnot(is.numeric(x), ncol(x) == 2,
+              is.character(unit),
+              is.vector(text, mode = "character"))
+    if (length(text) == 1L) {
+        text <- switch(
+            text,
+            "none" = c("[", ", ", "]"),
+            "german" = c("von ", " bis ", ""),
+            "english" = c("from ", " to ", ""),
+            stop("there is no predefined 'text' style \"", text, "\"")
+        )
+    } else if (length(text) != 3) {
+        stop("'text' must be a single character string or of length 3")
+    }
+
+    ## format the confidence interval(s)
+    fmtlimit <- paste0("%.", digits, "f")
+    fmt <- paste0(text[1L], fmtlimit, "%s", text[2L], fmtlimit, "%s", text[3L])
+    sprintf(fmt, x[,1L], unit, x[,2L], unit)
+}
+
+## function for formatting Bayes factors / likelihood ratios (from BayesRep package)
+.formatBF <- function (BF, digits = "default") {
+    stopifnot(length(BF) == 1, is.numeric(BF), (is.finite(BF) &&
+        0 < BF) || is.na(BF), length(digits) == 1, (is.character(digits) &&
+        digits == "default") || (is.numeric(digits) && 0 <= digits))
+    if (is.na(BF) || is.nan(BF))
+        result <- NA
+    else {
+        if (digits == "default") {
+            if (BF < 1/1000)
+                result <- "< 1/1000"
+            if ((BF >= 1/1000) & (BF <= 1/10))
+                result <- paste0("1/", as.character(round(1/BF)))
+            if ((BF > 1/10) & (BF < 1))
+                result <- paste0("1/", as.character(round(1/BF,
+                  digits = 1)))
+            if ((BF < 10) & (BF >= 1))
+                result <- as.character(round(BF, digits = 1))
+            if ((BF >= 10) & (BF <= 1000))
+                result <- as.character(round(BF))
+            if (BF > 1000)
+                result <- "> 1000"
+        }
+        else {
+            if (BF < 1)
+                result <- paste0("1/", as.character(round(1/BF,
+                  digits = digits)))
+            else result <- as.character(round(BF, digits = digits))
+        }
+        if (result == "1/1")
+            result <- "1"
+    }
+    return(result)
+}
+formatBF <- Vectorize(FUN = .formatBF)
+@
+
+\section{Introduction}
+
+We read with great interest the article by Sondhi et al. \cite{Sondhi2021},
+which introduces the concept of \emph{Bayesian Additional Evidence} (BAE). The
+authors use a reverse-Bayes argument to define BAE, and apply it to the
+important issue of how new evidence affects the overall credibility of an
+existing finding. As they state, BAE is thus closely related to another
+reverse-Bayes approach known as \emph{Analysis of Credibility} (AnCred) proposed
+by Matthews \cite{Matthews2018}; see also the recent review of Reverse-Bayes
+methods \cite{Held2021b}. In what follows, we comment on the similarities and
+differences of the two approaches and their inferential consequences. We find
+that decision making based on the BAE approach is limited by the restrictive
+assumption that the additional evidence must have equal or smaller variance than
+the variance of the observed data.
+
+
+\section{Bayesian additional evidence}
+We begin by showing that fortunately -- and contrary to the statement by Sondhi
+et al. on page 4 of their article -- there is a closed-form solution for what
+they term the BAE ``tipping point'', which is key to their approach.
+
+Assume, as per Sondhi et al., that both the likelihood of an effect estimate
+$\hat{\theta}$ (the ``data'') and the prior of the underlying effect size
+$\theta$ are represented by normal distributions
+$\hat{\theta}\given \theta \sim \Nor(\theta, \sigma^{2})$ and
+$\theta \sim \Nor(\mu, \tau^{2})$, with the latter evidence coming either from
+pre-existing insight/studies or from a subsequent replication. Bayes's Theorem
+then implies a posterior distribution
+$\theta \given \hat{\theta} \sim \Nor(\mu_{p}, \tau^{2}_{p})$ whose mean and
+variance satisfy
+\begin{align*}
+  &\frac{\mu_{p}}{\tau^{2}_{p}} = \frac{\hat{\theta}}{\sigma^{2}} + \frac{\mu}{\tau^{2}}&
+  &\text{and}&
+  &\frac{1}{\tau^{2}_{p}} = \frac{1}{\sigma^{2}} + \frac{1}{\tau^{2}}&
+\end{align*}
+Sondhi et al. further assume that $\tau^{2} = \sigma^{2}$, that is, the prior
+variance $\tau^{2}$ is equal to the data variance $\sigma^{2}$ which itself is
+equal to the squared (known) standard error $\sigma$ of the effect estimate
+$\hat{\theta}$. It then follows that the posterior mean is the mean of the data
+and the prior mean, and that the posterior variance is half the data variance
+\begin{align}
+  &\mu_{p} = \frac{\hat{\theta} + \mu}{2}&
+  &\text{and}&
+  &\tau^{2}_{p} = \frac{\sigma^{2}}{2}&
+  \label{eq:varconstraints}
+\end{align}
+
+The BAE ``tipping point'' is then defined as the least extreme prior mean that
+results in a posterior credible interval which excludes the null value. If the
+substantive hypothesis is for positive effect estimates (\eg
+$\log(\mbox{HR}) > 0$) the BAE is the prior mean which leads to the lower limit
+$L_{p}$ of the $100(1 - \alpha)$\% posterior credible interval being zero
+\begin{align}
+  L_{p} = \mu_{p} - z_{\scriptscriptstyle \alpha/2} \, \tau_{p} = 0
+  \label{eq:postcredL}
+\end{align}
+while for negative effect estimates the upper limit $U_{p}$ is fixed to zero
+\begin{align}
+  U_{p} = \mu_{p} + z_{\scriptscriptstyle \alpha/2} \, \tau_{p} = 0
+  \label{eq:postcredU}
+\end{align}
+with $z_{\scriptscriptstyle \alpha/2}$ the $1 - \alpha/2$ quantile of the
+standard normal distribution. Combining Eq.~\eqref{eq:varconstraints} with
+Eq.~\eqref{eq:postcredL}, respectively Eq.~\eqref{eq:postcredU}, leads to
+\begin{align}
+  \text{BAE}
+  & =  \sign(\hat{\theta}) \sqrt{2} \, z_{\scriptscriptstyle \alpha/2} \, \sigma - \hat{\theta}
+    \label{eq:bae}
+\end{align}
+where $\sign(\hat{\theta}) = 1$ when $\hat{\theta} > 0$ and
+$\sign(\hat{\theta}) = -1$ otherwise. Re-written in terms of the upper and lower
+$100(1 - \alpha)$\% confidence interval (CI) limits $U$ and $L$ of the effect
+estimate $\hat{\theta}$ we obtain
+\begin{align}
+  \text{BAE} = \frac{\text{sign}(\hat{\theta}) \sqrt{2} (U - L) - (U + L)}{2}
+  \label{eq:baeneg}
+\end{align}
+We see from Eq.~\eqref{eq:bae} that Sondhi et al.'s proposal has the intuitive
+property that as the study becomes more convincing (through larger effect sizes
+$|\hat{\theta}|$ and/or smaller standard errors $\sigma$), the BAE will decrease
+(increase) for positive (negative) $\hat{\theta}$, indicating that less
+additional evidence is needed to push a non-significant study towards
+credibility. Eq.~\eqref{eq:bae} and Eq.~\eqref{eq:baeneg} also hold for
+significant studies but the BAE then represents the mean of a ``sceptical''
+prior which renders the study non-significant.
+
+
+<< "data-example" >>=
+## reproduce BAE calculations from Sondhi et al. (2021)
+## -----------------------------------------------------------------------------
+
+## significance level
+alpha <- 0.05
+
+## data from Sondhi et al. (2021)
+hr <- 0.42
+hrCI <- c(0.14, 1.23)
+x <- log(hr)
+za <- qnorm(p = 1 - alpha/2)
+se <- (log(hrCI)[2] - log(hrCI)[1])/(2*za)
+p <- 2*pnorm(q = abs(x)/se, lower.tail = FALSE)
+
+## prior evidence from Innocenti et al. (2019)
+hr2 <- 0.13
+hr2CI <- c(0.06, 0.30)
+x2 <- log(0.13)
+se2 <- (log(hr2CI[2]) - log(hr2CI[1]))/(2*za)
+
+## Bayesian additional evidence based on effect size and standard error
+baeES <- function(x, se, alpha) {
+    bae <- sign(x)*sqrt(2)*qnorm(p = 1 - alpha/2)*se - x
+    return(bae)
+}
+
+## Bayesian additional evidence based on confidence interval limits
+baeCI <- function(L, U) {
+    x <- mean(c(L, U))
+    bae <- (sign(x)*sqrt(2)*(U - L) - (U + L))/2
+    return(bae)
+}
+
+## compute BAE for data from Sondhi et al. (2021)
+bae <- baeCI(L = log(hrCI)[1], U = log(hrCI)[2])
+@
+
+
+These closed-form solutions greatly simplify the use of the BAE methodology. For
+example, Sondhi et al. use a comparison of monoclonals to show how it identifies
+additional evidence which, when combined with a non-significant finding, leads
+to overall credibility. The trial estimated the hazard ratio of the
+bevacizumab+chemo patients compared to the cetuximab+chemo patients as
+$\mbox{HR} = \Sexpr{hr}$ (95\% CI: \Sexpr{formatCI(hrCI, text=c(""," to ",
+  ""))}), a non-significant finding with $p = 0.11$. Expressed as log(HR), we
+have $L = \Sexpr{round(log(hrCI[1]), 2)}$ and
+$U = \Sexpr{round(log(hrCI[2]), 2)}$. We use Eq.~\eqref{eq:baeneg} and find that
+on log hazard ratio scale $\mbox{BAE} = \Sexpr{round(bae, 2)}$ equivalent to an
+HR of $\Sexpr{round(exp(bae), 2)}$. Figure~\ref{fig:illustration} shows the
+corresponding prior mean with \Sexpr{round((1 - alpha)*100, 2)}\% prior
+credible interval.
+
+Thus additional evidence in the form of prior insight or a subsequent
+replication supporting an HR at least as impressive as this (\ie an
+$\mbox{HR} < \Sexpr{round(exp(bae), 2)}$ in this case), and a CI at least as
+tight as that of the original study will render this non-significant result
+credible at the 95\% level. Sondhi et al. cite prior evidence from Innocenti et
+al. \cite{Innocenti2019} who found an $\mbox{HR} = \Sexpr{hr2}$
+(95\% CI: \Sexpr{formatCI(hr2CI, text=c(""," to ", ""))}) which meets
+both criteria set by the BAE, and renders the original study credible.
+
+<< "hypothetical-study" >>=
+z2 <- x2/se2 # z-value from Innocenti et al. data
+se3 <- se + 0.05 # has to be larger than se from Sondhi et al.
+x3 <- z2*se3 # has to have the same/smaller p-value as Innocenti et al.
+z3 <- x3/se3
+hr3 <- exp(x3)
+hr3ci <- exp(x3 + c(-1, 1)*qnorm(p = 0.975)*se3)
+@
+
+<< "advocacy-priors" >>=
+## functions to compute prior parameters of the 3 reverse-Bayes approaches
+## -----------------------------------------------------------------------------
+
+## determine advocacy prior such that (1 - alpha) posterior credible interval
+## fixed to zero and prior coefficient of variation fixed to 1/z_(alpha/2)
+advPriorCV <- function(x, se, alpha) {
+    ## x: data
+    ## se: standard error of data
+    ## alpha: significance level
+    z <- x/se
+    za <- qnorm(p = 1 - alpha/2)
+    if (abs(z) >= za) {
+        out <- out <- c("mean" = NaN, "var" = NaN)
+    } else {
+        meanPrior <- 2*x/(1 - z^2/za^2)
+        varPrior <- meanPrior^2/za^2
+        out <- c("mean" = meanPrior, "var" = varPrior)
+    }
+    return(out)
+}
+
+## determine advocacy prior such that (1 - alpha) posterior credible interval
+## fixed to zero and prior variance fixed to variance of data
+advPriorVar <- function(x, se, alpha) {
+    ## x: data
+    ## se: standard error of data
+    ## alpha: significance level
+    z <- x/se
+    za <- qnorm(p = 1 - alpha/2)
+    if (abs(z) >= za) {
+        out <- out <- c("mean" = NaN, "var" = NaN)
+    } else {
+        meanPrior <- sign(x)*sqrt(2)*za*se - x
+        varPrior <- se^2
+        out <- c("mean" = meanPrior, "var" = varPrior)
+    }
+    return(out)
+}
+
+## determine advocacy prior such that (1 - alpha) posterior credible interval
+## fixed to zero and prior mean fixed to value of data
+advPriorMean <- function(x, se, alpha) {
+    ## x: data
+    ## se: standard error of data
+    ## alpha: significance level
+    z <- x/se
+    za <- qnorm(p = 1 - alpha/2)
+    if (abs(z) >= za) {
+        out <- out <- c("mean" = NaN, "var" = NaN)
+    } else {
+        meanPrior <- x
+        varPrior <- se^2/(za^2/z^2 - 1)
+        out <- c("mean" = meanPrior, "var" = varPrior)
+    }
+    return(out)
+}
+
+## compute posterior credible interval to check correctness of functions
+postCrI <- function(x, se, meanPrior, varPrior, alpha) {
+    postVar <- 1/(1/se^2 + 1/varPrior)
+    postMean <- (x/se^2 + meanPrior/varPrior)*postVar
+    za <- qnorm(p = 1 - alpha/2)
+    crI <- postMean + c(-1, 1)*za*sqrt(postVar)
+    names(crI) <- c("lower", "upper")
+    return(crI)
+}
+@
+
+\begin{figure}[!htb]
+<< "bae-comparison-fig", fig.height = 5 >>=
+## recreate figure from paper
+## -----------------------------------------------------------------------------
+
+## bae
+bae <- baeES(x = x, se = se, alpha = alpha)
+bae <- baeCI(L = log(hrCI[1]), U = log(hrCI[2]))
+baePost <- postCrI(x = x, se = se, meanPrior = bae, varPrior = se^2,
+                   alpha = alpha)
+
+## AnCred
+anCredPars <- advPriorCV(x = x, se = se, alpha = alpha)
+anCredPost <- postCrI(x = x, se = se, meanPrior = anCredPars[1],
+                      varPrior = anCredPars[2], alpha = alpha)
+
+## fixed mean
+fmPars <- advPriorMean(x = x, se = se, alpha = alpha)
+fmPost <- postCrI(x = x, se = se, meanPrior = fmPars[1],
+                  varPrior = fmPars[2], alpha = alpha)
+
+## CIs
+lower <- c(x - za*se,
+           bae - za*se, anCredPars[1] - za*sqrt(anCredPars[2]),
+           fmPars[1] - za*sqrt(fmPars[2]),
+           baePost[1], anCredPost[1], fmPost[1],
+           x2 - za*se2)
+est <- c(x,
+         bae, anCredPars[1], fmPars[1],
+         mean(baePost), mean(anCredPost), mean(fmPost),
+         x2)
+upper <- c(x + za*se,
+           bae + za*se, anCredPars[1] + za*sqrt(anCredPars[2]),
+           fmPars[1] + za*sqrt(fmPars[2]),
+           baePost[2], anCredPost[2], fmPost[2],
+           x2 + za*se2)
+colpalette <- c("#000000", "#1B9E77", "#D95F02", "#7570B3", "#000000")
+cols <- colpalette[c(1, 2, 3, 4, 2, 3, 4, 5)]
+
+
+xseq <- c(1, 2.8, 3, 3.2, 1.8, 2, 2.2, 4)
+xbks <- c(1, 2, 3, 4)
+xlab <- c("Data", "Posterior", "Prior", "Additional data")
+ybks <- c(log(10), log(1), log(1/10), log(1/100), log(1/1000))
+plot(x = xseq, y = est, type = "n", ylim = c(min(lower), log(5)),
+     xlim = c(0.8*min(xbks), 1.1*max(xbks)), xaxt = "n", yaxt = "n",
+     xlab = "", ylab = "", las = 2)
+mtext(side = 2, text = "Hazard Ratio", line = 3.3)
+abline(h = 0, lty = 2, col = adjustcolor(col = 1, alpha = 0.5), lwd = 1.5)
+axis(side = 2, at = ybks, labels = formatBF(exp(ybks)), las = 2)
+axis(side = 1, at = xbks, labels = xlab)
+abline(h = ybks, lty = 1, col = adjustcolor(col = 1, alpha = 0.1))
+box()
+arrows(x0 = xseq, y0 = lower, y1 = upper, angle = 90, code = 3, length = 0.1,
+       lwd = 1.2, col = cols)
+points(x = xseq, y = est, pch = 20, cex = 1.2, col = cols)
+legend("bottomright", c("BAE", "AnCred", "fixed mean"), pch = 20,
+       col = colpalette[2:4], bg = "white")
+@
+\caption{Comparison of BAE, AnCred, and fixed mean \Sexpr{round((1 - alpha)*100,
+    2)}\% prior and posterior credible intervals for the data from Sondhi et al.
+  \citep{Sondhi2021}. Additional data from Innocenti et al. \cite{Innocenti2019}
+  are also shown.}
+\label{fig:illustration}
+\end{figure}
+
+
+\begin{figure}[!htb]
+<< "plot-2d", fig.height = 5.5 >>=
+## BAE for differnet prior variances than the one observed in the data
+bae2 <- function(x, se, alpha, g) {
+    ## g: the relative prior variance
+    bae <- (sign(x)*qnorm(p = 1 - alpha/2)*se*sqrt(g/(1 + g)) - x*g/(1 + g))*(1 + g)
+    return(bae)
+}
+
+## prior parameter space data
+priorsDF <- data.frame(mean = c(anCredPars[1], bae, fmPars[1]),
+                       var = c(anCredPars[2], se^2, fmPars[2]),
+                       type = c("AnCred", "BAE", "fixed mean"),
+                       color = colpalette[c(3, 2, 4)])
+
+## plot priors in prior parameter space
+loggseq <- seq(log(0.01), log(25), length.out = 500)
+gbks <- c(0.1, 0.2, 0.5, 1, 2, 5, 10, 20)
+baeseq <- bae2(x = x, se = se, alpha = alpha, g = exp(loggseq))
+plot(x = loggseq, y = baeseq/x, type = "l", las = 1, xaxt = "n",
+     xlab = bquote("relative prior variance" ~ italic(g) == tau^2/sigma^2),
+     ylab = "", xlim = log(c(0.1, 20)), ylim = c(0, 6), lwd = 1.8)
+axis(side = 1, at = log(gbks), labels = gbks)
+mtext(side = 2, text =bquote("relative prior mean" ~ mu/hat(theta)),
+      line = 2)
+## draw non-credibiliy region
+polygon(x = c(head(loggseq)[1], loggseq, tail(loggseq)[1]),
+        y = c(10, baeseq, 10)/x, density = 10,
+        angle = 135, border = NA, col = adjustcolor(col = "black", alpha = 0.3),
+        lty = 2, lwd = 1)
+## draw credibiliy region
+polygon(x = c(head(loggseq)[1], loggseq, tail(loggseq)[1]),
+        y = c(-100, baeseq, -100)/x, density = 10,
+        angle = 45, border = NA, col = adjustcolor(col = "black", alpha = 0.3),
+        lty = 3, lwd = 1.5)
+## draw significance region
+lines(x = loggseq, y = -qnorm(p = 1 - alpha/2)*sqrt(exp(loggseq)*se^2)/x,
+      col = adjustcolor(colpalette[3], alpha = 0.5))
+## draw fixed mean/variance
+abline(h = 1, col = adjustcolor(colpalette[4], alpha = 0.5))
+abline(v = 0, col = adjustcolor(colpalette[2], alpha = 0.5))
+## draw tipping points
+points(x = log(priorsDF[,2]/se^2), y = priorsDF[,1]/x, col = priorsDF[,4],
+       pch = 20, cex = 1.6)
+legend("topleft", c("BAE", "AnCred", "fixed mean"), pch = 20,
+       col = c(colpalette[2:4]## , 1
+               ), bg = "white")
+text(x = log(0.28), y = 1.5,
+     labels = bquote("posterior credible at" ~ alpha == .(alpha)), cex = 1.1)
+text(x = log(5), y = 0.5,
+     labels = bquote("posterior not credible at" ~ alpha == .(alpha)), cex = 1.1)
+@
+\caption{Relative prior mean vs. relative prior variance for the data from
+  Sondhi et al. The dashed region represents parameter values, which do not lead
+  to posterior credibility, whereas values in the dotted region lead to
+  posterior credibility (at $\alpha = \Sexpr{round(alpha*100, 2)}\%$). The
+  colored lines indicate the parameters which fulfil the side-constraints of the
+  respective method.}
+\label{fig:priospace}
+\end{figure}
+
+\section{Alternatives approaches}
+In order to get a unique solution for the BAE, Sondhi et al. make the assumption
+that the prior variance equals the data variance, but also other possibilities
+exist. An alternative rationale would be to set the mean of the additional
+evidence, rather than variance, to that of the original finding (\ie
+$\mu = \hat{\theta}$), and determining the prior variance $\tau^{2}$ such that
+the posterior credible interval includes the null value. Under this approach,
+the prior variance is given by
+\begin{align*}
+  \tau^{2} = \frac{\sigma^{2}}{z_{\scriptscriptstyle \alpha/2}^2/z^2 - 1}
+\end{align*}
+with $z = \hat{\theta}/\sigma$. The resulting prior represents a study with
+identical effect estimate but different precision compared to the observed one.
+As the observed study becomes more convincing (with larger effect estimates
+$|\hat{\theta}|$ and/or smaller standard errors $\sigma$), the prior will become
+more diffuse, so less additional evidence is needed to render the finding
+credible. We see in Figure~\ref{fig:illustration} that prior and posterior are
+similar to BAE for the clinical trial data from Sondhi et al.
+
+
+Figure~\ref{fig:illustration} also illustrates that the BAE and the fixed mean approach can lead to
+priors which support effect sizes opposing that of the original finding. This is
+not possible with the AnCred advocacy prior whose prior credible interval is
+fixed to the null value so that the prior adheres to the Principle of Fairminded
+Advocacy \cite{Matthews2018}. Held et al. \cite{Held2021b} showed that this
+constraint is equivalent to fixing the coefficient of variation from the prior
+to $\tau/\mu = z_{\scriptscriptstyle \alpha/2}^{-1}$. Hence, its mean and
+variance are given by
+\begin{align*}
+  &\mu = \frac{2 \, \hat{\theta}}{1 - z^{2}/z_{\scriptscriptstyle \alpha/2}^{2}}&
+  &\text{and}&
+  &\tau^{2} = \frac{\mu^{2}}{z_{\scriptscriptstyle \alpha/2}^{2}}.&
+\end{align*}
+We see that -- as with the fixed mean approach -- the AnCred prior becomes more
+diffuse for increasingly convincing studies. However, at the same time the prior
+mean also increases (decreases) for positive (negative) effect estimates, so
+that only effect sizes in the correct direction are supported.
+
+Figure~\ref{fig:illustration} shows that the AnCred advocacy prior credible
+interval is far wider compared to the other approaches. Perhaps this observation
+led Sondhi et al. to state that AnCred is harder to interpret than BAE, and that
+it can lead to prior intervals ``wide enough to effectively contain any effect
+size, which is unhelpful for decision making''. We would argue that broad priors
+are a valuable diagnostic of when little additional evidence is needed to
+achieve posterior credibility, as it is the case with the example Sondhi et al.
+consider. Moreover, we would argue that AnCred priors are very helpful in
+decision making since any additional evidence whose confidence interval is
+contained in the AnCred prior credible interval will \emph{necessarily} lead to
+posterior credibility when combined with the observed data \cite{Held2021b}. In
+contrast, the BAE approach requires decision makers to keep in mind the variance
+of the additional evidence, since only additional evidence with a point estimate
+that is more extreme as the BAE and with confidence interval at least as tight
+as the observed confidence interval from the study is guaranteed to lead to
+posterior credibility. Assume, for example, the additional data from Innocenti
+et al. had been more impressive, say, $\mbox{HR} = \Sexpr{round(hr3, 2)}$, with
+a 95\% CI from \Sexpr{round(hr3ci[1], 3)} to \Sexpr{round(hr3ci[2], 2)}.
+Intuition suggests, and direct calculation confirms, that this would be even
+more capable of making the original finding credible. However, this would not be
+clear to a decision maker using the BAE approach as currently formulated, as the
+confidence interval is wider than the one of the observed study (on the log
+scale).
+
+While Sondhi et al. acknowledge the dependence of the BAE on the choice of the
+prior variance, they do not give clear guidance on when it should be set to a
+value different from the observed data variance. Fortunately, when the prior and
+data variances differ, there is again a closed form solution for the BAE
+``tipping point''
+\begin{align}
+  \text{BAE}(g)
+  & =  \sign(\hat{\theta}) \sqrt{g \, (1 + g)} \, z_{\scriptscriptstyle \alpha/2} \, \sigma
+    - g \, \hat{\theta}
+    \label{eq:bae2}
+\end{align}
+with relative prior variance $g = \tau^{2}/\sigma^{2}$. We see from
+Figure~\ref{fig:priospace} that Eq.~\eqref{eq:bae2} substantially depends on the
+chosen prior variance and that the BAE based on $g = 1$ only captures a limited
+range of priors which lead to posterior credibility. Unfortunately, Sondhi et
+al. do not give a clear rationale for the default choice of $g = 1$. It may
+therefore be more helpful for decision makers to base their decision on the more
+principled AnCred advocacy prior or on a visualisation of the prior parameter
+space as in Figure~\ref{fig:priospace}.
+
+\section{Conclusion}
+In summary, we welcome BAE as an interesting application of reverse-Bayes
+methods, and we hope our derivation of closed-form solutions will encourage
+further research. However, as currently formulated BAE lacks both a clear
+rationale for the constraints on which it is based, and a sufficiently detailed
+explanation allowing reliable decision-making.
+
+
+
+\begin{backmatter}
+
+\section*{Acknowledgements}%% if any
+We thank two anonymous referees and the third referee Riko Kelter for their
+helpful suggestions.
+
+\section*{Funding}%% if any
+Financial support from the Swiss National Science Foundation (Project \#189295)
+is gratefully acknowledged. The funder had no role in study design, data
+collection, data analysis, data interpretation, decision to publish, or
+preparation of the manuscript.
+
+\section*{Abbreviations}%% if any
+BAE: Bayesian Additional Evidence, AnCred: Analysis of Credibility
+
+\section*{Availability of data and materials}%% if any
+Summary statistics on the case study were taken from Sondi et al. The R Code to
+reproduce our analyses is available on the Open Science Framework
+(https://osf.io/ymx92/).
+
+\section*{Ethics approval and consent to participate}%% if any
+Not applicable.
+
+\section*{Competing interests}
+The authors declare that they have no competing interests.
+
+\section*{Consent for publication}%% if any
+Not applicable.
+
+\section*{Authors' contributions}
+Concept and design: SP, RM, LH,
+Data analysis and visualization: SP,
+Writing -- Original Draft Preparation: SP,
+Writing -- Review \& Editing: SP, RM, LH,
+Funding Acquisition: LH
+
+\section*{Authors' information}%% if any
+Not applicable.
+
+
+% if your bibliography is in bibtex format, use those commands:
+\bibliographystyle{bmc-mathphys} % Style BST file (bmc-mathphys, vancouver, spbasic).
+\bibliography{bibliography}      % Bibliography file (usually '*.bib' )
+
+<< "sessionInfo1", eval = Reproducibility, results = "asis" >>=
+## print R sessionInfo to see system information and package versions
+## used to compile the manuscript (set Reproducibility = FALSE, to not do that)
+cat("\\newpage \\section*{Computational details}")
+@
+<< "sessionInfo2", echo = Reproducibility, results = Reproducibility >>=
+sessionInfo()
+@
+
+
+\end{backmatter}
+\end{document}

@@ -1,6 +1,7 @@
 # Comment on "Bayesian additional evidence for decision making under small sample uncertainty"
 
-This repository contains code and data related to the paper
+This repository contains code and data to reproduce the accepted manuscript of
+the paper
 
 Pawel, S., Held, L. and Matthews, R. Comment on "Bayesian additional evidence
 for decision making under small sample uncertainty". BMC Medical Research
